@@ -5,11 +5,11 @@ from sns_msg.srv import RobotAction
 import random
 import time
 
-ROBOTXUPPER = 100
-ROBOTXLOWER = -100
+ROBOTXUPPER = 100.0
+ROBOTXLOWER = -100.0
 
-ROBOTYUPPER = 100
-ROBOTYLOWER = -100
+ROBOTYUPPER = 100.0
+ROBOTYLOWER = -100.0
 
 
 class RobotServer(Node):
@@ -28,7 +28,7 @@ class RobotServer(Node):
         coordX = request.x
         coordY = request.y
 
-        if ~(
+        if not (
             ROBOTXLOWER <= coordX <= ROBOTXUPPER
             and ROBOTYLOWER <= coordY <= ROBOTYUPPER
         ):

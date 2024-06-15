@@ -1,3 +1,4 @@
+from math import sqrt
 import rclpy
 from rclpy.node import Node
 from sns_msg.srv import RobotAction
@@ -35,7 +36,7 @@ class RobotServer(Node):
             response.success = False
             return response
 
-        self.waitUntil(random.uniform(1, 5))
+        self.waitUntil(sqrt(coordX**2 + coordY**2)*0.1)
         response.success = True
         return response
 
@@ -43,7 +44,7 @@ class RobotServer(Node):
 def main():
     rclpy.init()
 
-    print("starting...")
+    print("starting robot server...")
 
     robot_server = RobotServer()
     rclpy.spin(robot_server)

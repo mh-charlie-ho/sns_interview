@@ -50,14 +50,6 @@ class Console(Node):
         self.declare_parameter("stove_level", "Max")
         self.declare_parameter("keep_temperature_sec", 10)
 
-        # my_new_param = rclpy.parameter.Parameter(
-        #     'ingredient_id',
-        #     rclpy.Parameter.Type.INTEGER,
-        #     2
-        # )
-        # all_new_parameters = [my_new_param]
-        # self.set_parameters(all_new_parameters)
-
     def serverHandshake(self, serviceName, serviceType):
         cli = self.create_client(serviceType, serviceName)
         while not cli.wait_for_service(timeout_sec=1.0):

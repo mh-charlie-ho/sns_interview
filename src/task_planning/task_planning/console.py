@@ -1,5 +1,3 @@
-from numpy import double
-from sympy import pde_separate_add
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
@@ -51,6 +49,14 @@ class Console(Node):
         self.declare_parameter("robot_position", [0.0, 0.0])
         self.declare_parameter("stove_level", "Max")
         self.declare_parameter("keep_temperature_sec", 10)
+
+        # my_new_param = rclpy.parameter.Parameter(
+        #     'ingredient_id',
+        #     rclpy.Parameter.Type.INTEGER,
+        #     2
+        # )
+        # all_new_parameters = [my_new_param]
+        # self.set_parameters(all_new_parameters)
 
     def serverHandshake(self, serviceName, serviceType):
         cli = self.create_client(serviceType, serviceName)

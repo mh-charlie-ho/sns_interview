@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from sns_msg.srv import ConveyorAction
+from sns_msgs.srv import ConveyorAction
 
 import random
 

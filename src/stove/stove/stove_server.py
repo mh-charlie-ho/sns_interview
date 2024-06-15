@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 
-from sns_msg.srv import StoveAction
+from sns_msgs.srv import StoveAction
 from std_msgs.msg import Header
 from sensor_msgs.msg import Temperature
 

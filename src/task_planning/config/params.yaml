@@ -1,4 +1,4 @@
-user_interface:
+console:
   ros__parameters:
     ingredient_id: 3
     robot_position: [12.3, 20.8]

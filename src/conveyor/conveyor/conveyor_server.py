@@ -23,7 +23,7 @@ class ConveyorServer(Node):
         """
         check if the food is delivered.
         """
-        result = round(random.uniform(0, 1))
+        result = 1
         if result == 0:
             return False
         else:
@@ -50,7 +50,7 @@ class ConveyorServer(Node):
 def main():
     rclpy.init()
 
-    print("starting...")
+    print("starting conveyor server")
 
     conveyor_server = ConveyorServer()
     rclpy.spin(conveyor_server)

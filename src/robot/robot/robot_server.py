@@ -1,44 +1,81 @@
 from math import sqrt
 import rclpy
 from rclpy.node import Node
-from sns_msg.srv import RobotAction
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from sns_msgs.msg import RobotState
+from sns_msgs.srv import RobotAction
+from sensor_msgs.msg import JointState
 
 import random
 import time
 
-ROBOTXUPPER = 100.0
-ROBOTXLOWER = -100.0
+ROBOTXUPPER = 10.0
+ROBOTXLOWER = -10.0
 
-ROBOTYUPPER = 100.0
-ROBOTYLOWER = -100.0
+ROBOTYUPPER = 10.0
+ROBOTYLOWER = -10.0
+
+METER2DEGREE = 1000  # 1mm = 1 degree
 
 
 class RobotServer(Node):
+
     def __init__(self):
         super().__init__("robot_server")
-        self.srv = self.create_service(RobotAction, "robot_service", self.process)
+        g1 = MutuallyExclusiveCallbackGroup()
+        g2 = MutuallyExclusiveCallbackGroup()
+        g3 = MutuallyExclusiveCallbackGroup()
+        self.srv = self.create_service(RobotAction,
+                                       "robot_service",
+                                       self.setBotPos,
+                                       callback_group=g1)
+        self.botState = self.create_subscription(JointState,
+                                                 "joint_state",
+                                                 self.getBotPos,
+                                                 10,
+                                                 callback_group=g2)
+        self.botCmdPub = self.create_publisher(JointState,
+                                               "joint_cmd",
+                                               10,
+                                               callback_group=g3)
+        self.create_timer(0.5, self.updateBotJoint, callback_group=g3)
 
-    def waitUntil(self, threshold):
-        start = time.time()
-        while time.time() - start < threshold:
-            time.sleep(0.1)
-        return
+        self.tRobotPos = [0, 0]
+        self.RobotPos = [0, 0]
 
-    def process(self, request, response):
+    def isInInterval(self, target, min, max):
+        if min <= target <= max:
+            return True
+        return False
 
-        coordX = request.x
-        coordY = request.y
+    def setBotPos(self, request, response):
 
-        if not (
-            ROBOTXLOWER <= coordX <= ROBOTXUPPER
-            and ROBOTYLOWER <= coordY <= ROBOTYUPPER
-        ):
+        if not (self.isInInterval(request.x, ROBOTXLOWER, ROBOTXUPPER)
+                and self.isInInterval(request.y, ROBOTYLOWER, ROBOTYUPPER)):
             response.success = False
             return response
 
-        self.waitUntil(sqrt(coordX**2 + coordY**2)*0.1)
+        self.tRobotPos[0] = request.x * METER2DEGREE
+        self.tRobotPos[1] = request.y * METER2DEGREE
+
+        while not ((abs(self.RobotPos[0] - self.tRobotPos[0]) < 100) and
+                   (abs(self.RobotPos[1] - self.tRobotPos[1]) < 100)):
+            time.sleep(0.1)  # block until success
+
         response.success = True
         return response
+
+    def getBotPos(self, msg):
+        self.RobotPos[0] = msg.position[0]
+        self.RobotPos[1] = msg.position[1]
+
+    def updateBotJoint(self):
+        jointCmd = JointState()
+        jointCmd.position.append(self.tRobotPos[0])
+        jointCmd.position.append(self.tRobotPos[1])
+        self.botCmdPub.publish(jointCmd)
+        time.sleep(0.1)
 
 
 def main():
@@ -47,7 +84,10 @@ def main():
     print("starting robot server...")
 
     robot_server = RobotServer()
-    rclpy.spin(robot_server)
+    executor = MultiThreadedExecutor(3)
+    executor.add_node(robot_server)
+    executor.spin()
+
     rclpy.shutdown()
 
 

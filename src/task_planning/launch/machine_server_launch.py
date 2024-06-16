@@ -19,9 +19,14 @@ def generate_launch_description():
              name="robot_server",
              output="screen",
              emulate_tty=True),
+        Node(package="robot",
+             executable="robot",
+             name="arm_robot",
+             output="screen",
+             emulate_tty=True),
         Node(package="stove",
              executable="stove_server",
              name="stove_server",
              output="screen",
-             emulate_tty=True),
+             emulate_tty=True)
     ])

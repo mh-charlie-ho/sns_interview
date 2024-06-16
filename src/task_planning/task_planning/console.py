@@ -1,36 +1,13 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from sns_msg.srv import ConveyorAction, RobotAction, StoveAction
-from sensor_msgs.msg import Temperature
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from sns_msgs.srv import ConveyorAction, RobotAction, StoveAction
+from sensor_msgs.msg import Temperature, JointState
 
 import time
-import threading
-
-
-class CustomError(BaseException):
-
-    def __init__(self, message):
-        self.message = message
-
 
 temperatureData = 0
-
-
-class SensorInfo(Node):
-
-    def __init__(self):
-        super().__init__("sensor_info")
-
-        self.subscription = self.create_subscription(Temperature, "heat_topic",
-                                                     self.updateTemperature,
-                                                     10)
-        self.subscription
-
-    def updateTemperature(self, msg):
-        global temperatureData
-        temperatureData = msg.temperature
 
 
 class Console(Node):
@@ -38,28 +15,63 @@ class Console(Node):
     def __init__(self):
         super().__init__("console")
 
-        self.concli, self.conreq = self.serverHandshake(
-            "conveyor_service", ConveyorAction)
-        self.robcli, self.robreq = self.serverHandshake(
-            "robot_service", RobotAction)
-        self.stocli, self.storeq = self.serverHandshake(
-            "stove_service", StoveAction)
+        g1 = MutuallyExclusiveCallbackGroup()
+        g2 = MutuallyExclusiveCallbackGroup()
+        g3 = MutuallyExclusiveCallbackGroup()
+        g4 = MutuallyExclusiveCallbackGroup()
 
         self.declare_parameter("ingredient_id", 1)
         self.declare_parameter("robot_position", [0.0, 0.0])
         self.declare_parameter("stove_level", "Max")
-        self.declare_parameter("keep_temperature_sec", 10)
+        self.declare_parameter("keep_temperature_sec", 10.0)
 
-    def serverHandshake(self, serviceName, serviceType):
-        cli = self.create_client(serviceType, serviceName)
+        self.updateParameters()  # initialization
+        self.create_timer(1, self.updateParameters, callback_group=g1)
+
+        self.temperature = 0.0
+        self.subscription = self.create_subscription(Temperature,
+                                                     "heat_topic",
+                                                     self.updateTemperature,
+                                                     10,
+                                                     callback_group=g2)
+
+        self.concli, self.conreq = self.serverHandshake(
+            "conveyor_service", ConveyorAction, g3)
+        self.robcli, self.robreq = self.serverHandshake(
+            "robot_service", RobotAction, g3)
+        self.stocli, self.storeq = self.serverHandshake(
+            "stove_service", StoveAction, g3)
+
+        self.create_timer(1, self.doTask, callback_group=g4)
+
+    def updateParameters(self):
+        self.ingredientID = int(
+            self.get_parameter(
+                "ingredient_id").get_parameter_value().integer_value)
+        self.robotPos = (self.get_parameter(
+            "robot_position").get_parameter_value().double_array_value)
+        self.stoveLv = str(
+            self.get_parameter(
+                "stove_level").get_parameter_value().string_value)
+        self.tempSec = float(
+            self.get_parameter(
+                "keep_temperature_sec").get_parameter_value().double_value)
+
+    def updateTemperature(self, msg):
+        self.temperature = msg.temperature
+
+    def serverHandshake(self, serviceName, serviceType, callbackGroup):
+        cli = self.create_client(serviceType,
+                                 serviceName,
+                                 callback_group=callbackGroup)
         while not cli.wait_for_service(timeout_sec=1.0):
-            print(serviceName + " not available, waiting again...")
-        req = serviceType.Request()
-        return cli, req
+            print(f"{serviceName} not available, waiting again...")
+        return cli, serviceType.Request()
 
     def sendRequest(self, cli, req):
         future = cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
+        while not future.done():
+            time.sleep(1)
         return future.result()
 
     def sendToConveyor(self, ingredient_id):
@@ -75,78 +87,58 @@ class Console(Node):
         self.storeq.action_name = action_name
         return self.sendRequest(self.stocli, self.storeq)
 
-    def getMsg(self, state, msgForTrue, msgForFalse):
+    def getMsg(self, state, msgForTrue):
         if state:
             print(msgForTrue)
-        else:
-            raise CustomError(msgForFalse)
 
     def doTask(self):
-        global temperatureData
         while True:
-            ans = input("ready?...[y/n]")
+            ans = input("Ready?... [y/n]: ").strip().lower()
             if ans == "y":
-                pass
+                break
             elif ans == "n":
-                continue
+                return
             else:
-                print("please press y or n.")
-                continue
+                print("Please enter 'y' or 'n'.")
 
-            ingredientID = int(
-                self.get_parameter(
-                    "ingredient_id").get_parameter_value().integer_value)
-            robotPos = (self.get_parameter(
-                "robot_position").get_parameter_value().double_array_value)
-            stoveLv = str(
-                self.get_parameter(
-                    "stove_level").get_parameter_value().string_value)
-            tempSec = float(
-                self.get_parameter(
-                    "keep_temperature_sec").get_parameter_value().double_value)
+        print("\nprocessing =================")
+        result = self.sendToConveyor(self.ingredientID)
+        self.getMsg(result.success, result.state_msg)
+        time.sleep(1)
 
-            print("\nprocessing =================")
-            result = self.sendToConveyor(ingredientID)
-            self.getMsg(result.success, result.state_msg, result.state_msg)
-            time.sleep(1)
+        print(
+            f"Robot's position command is ({self.robotPos[0]}, {self.robotPos[1]})."
+        )
+        result = self.sendToRobot(float(self.robotPos[0]),
+                                  float(self.robotPos[1]))
+        self.getMsg(result.success, "Robot has arrived")
 
-            result = self.sendToRobot(float(robotPos[0]), float(robotPos[1]))
-            self.getMsg(result.success, "Robot OK", "Robot not arrived")
-            time.sleep(1)
+        print("Turn on the stove.")
+        result = self.sendToStove(self.stoveLv)
+        self.getMsg(result.success, "Stove is turned on")
 
-            result = self.sendToStove(stoveLv)
-            self.getMsg(result.success, "Stove OK", "Stove fails")
-            time.sleep(1)
+        while self.temperature < 200.0:
+            time.sleep(0.1)
+        time.sleep(self.tempSec)
 
-            while temperatureData <= 200:
-                time.sleep(0.1)
-
-                if temperatureData == 200:
-                    time.sleep(tempSec)
-                    break
-
-            result = self.sendToRobot(0, 0)
-            self.getMsg(result.success, "Robot home position",
-                        "Robot not arrived")
-            time.sleep(1)
-
-            result = self.sendToStove("OFF")
-            self.getMsg(result.success, "Stove Off", "Stove fails")
-            time.sleep(1)
-            print("============================\n")
+        print(f"Robot is going home.")
+        result = self.sendToRobot(0, 0)
+        self.getMsg(result.success, "The robot has arrived home.")
+        
+        result = self.sendToStove("OFF")
+        self.getMsg(result.success, "Stove Off")
+        time.sleep(1)
+        print("============================\n")
 
 
 def main():
     rclpy.init()
 
     print("preparing...")
-    console = Console()
-    sensor_info = SensorInfo()
 
-    executor = SingleThreadedExecutor()
-    executor.add_node(sensor_info)
+    console = Console()
+    executor = MultiThreadedExecutor(5)
     executor.add_node(console)
-    threading.Thread(target=console.doTask).start()
     executor.spin()
 
 

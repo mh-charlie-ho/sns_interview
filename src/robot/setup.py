@@ -20,6 +20,7 @@ setup(
     entry_points={
         "console_scripts": [
             "robot_server=robot.robot_server:main",
+            "robot=robot.arm_robot:main",
         ],
     },
 )

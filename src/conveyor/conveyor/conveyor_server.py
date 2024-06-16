@@ -2,54 +2,35 @@ import rclpy
 from rclpy.node import Node
 from sns_msgs.srv import ConveyorAction
 
-import random
-
 
 class ConveyorServer(Node):
     def __init__(self):
         super().__init__("conveyor_server")
         self.srv = self.create_service(ConveyorAction, "conveyor_service", self.process)
-
-        self.ingredientDict = {1: "garlic", 2: "sausage", 3: "rice"}
-        self.stateMsg = {0: "There is not the ingredient.", 1: "delivering..."}
+        self.ingredientDict = {
+            1: "garlic",
+            2: "sausage",
+            3: "rice"
+        }
 
     def getIngredient(self, id):
-        if id in self.ingredientDict:
-            return self.ingredientDict[id]
-        else:
-            return None
-
-    def checkState(self, ingredient):
-        """
-        check if the food is delivered.
-        """
-        result = 1
-        if result == 0:
-            return False
-        else:
-            return True
+        return self.ingredientDict.get(id)
 
     def process(self, request, response):
         ingredient = self.getIngredient(request.ingredient_id)
-
-        noIngredient = ingredient is None
-        stateNoGood = self.checkState(ingredient) is False
-
-        if noIngredient or stateNoGood:
-            response.state_msg = self.stateMsg[0]
-            response.success = False
-
-            return response
-        else:
-            response.state_msg = self.stateMsg[1] + ingredient
+        
+        if ingredient:
             response.success = True
-
-            return response
+            response.state_msg = "delivering... " + ingredient
+        else:
+            response.success = False
+            response.state_msg = "There is not the ingredient."
+        
+        return response
 
 
 def main():
     rclpy.init()
-
     print("starting conveyor server")
 
     conveyor_server = ConveyorServer()

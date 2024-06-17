@@ -67,5 +67,3 @@ Monitor the joint state
  ros2 topic echo /joint_state
 ```
 
-## View the result of Q5.
-

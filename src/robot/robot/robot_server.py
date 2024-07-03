@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from math import sqrt
 import rclpy
 from rclpy.node import Node
